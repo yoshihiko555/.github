@@ -43,9 +43,25 @@ includes:
 
 前提: `ghq get yoshihiko555/.github`
 
-## 各 repo での利用方法
+## 新規リポジトリセットアップ
 
-1. `.github/workflows/release.yml` に caller workflow を置く:
+新しいリポジトリを作成したら、以下の手順で共通資材を導入する。
+
+### 1. リポジトリファイルの配置
+
+#### CHANGELOG.md
+
+リポジトリルートに `CHANGELOG.md` を作成する:
+
+```markdown
+# Changelog
+
+## Unreleased
+```
+
+#### Release caller workflow
+
+`.github/workflows/release.yml` に caller workflow を置く:
 
 ```yaml
 name: Release
@@ -60,16 +76,31 @@ jobs:
     uses: yoshihiko555/.github/.github/workflows/release.yml@main
 ```
 
-2. `Taskfile.yml` に上記の release タスク参照を追加する
-3. `CHANGELOG.md` を用意する
+#### Release notes カテゴリ設定
 
-## GitHub 設定
+`templates/release.yml` を `.github/release.yml` としてコピーする。
+PR ラベルに応じた GitHub Release notes の自動カテゴリ分けが有効になる。
 
-### Rulesets
+#### PR テンプレート
+
+`PULL_REQUEST_TEMPLATE.md` を `.github/PULL_REQUEST_TEMPLATE.md` としてコピーする。
+
+#### Taskfile
+
+`Taskfile.yml` に release タスク参照を追加する:
+
+```yaml
+includes:
+  rel:
+    taskfile: ~/ghq/github.com/yoshihiko555/.github/taskfiles/release.yml
+    flatten: true
+```
+
+### 2. GitHub Settings
+
+#### Rulesets
 
 `rulesets/` に GitHub Rulesets の共通 JSON を管理する。
-
-#### 新しい repo への import 手順
 
 1. 対象 repo の **Settings** → **Rules** → **Rulesets** を開く
 2. **New ruleset** → **Import a ruleset** を選ぶ
@@ -78,7 +109,7 @@ jobs:
    - `tag-protection.json` — release tag 保護
 4. import 内容を確認して作成する
 
-#### import 後に確認する項目
+import 後に確認する項目:
 
 - target pattern が `main` など意図した対象になっている
 - required status checks がその repo の CI ジョブ名と一致している
@@ -87,9 +118,9 @@ jobs:
 - force push 禁止・linear history が有効か
 - tag ruleset を使う repo では tag 側も設定したか
 
-### Pull Requests 設定
+#### Pull Requests 設定
 
-各 repo で **Settings** → **General** → **Pull Requests** を次のように設定する。
+**Settings** → **General** → **Pull Requests** を次のように設定する。
 
 | 設定項目 | 値 |
 |----------|-----|
@@ -99,6 +130,16 @@ jobs:
 | Automatically delete head branches | ON |
 
 詳細は `docs/github-rulesets.md` を参照。
+
+### セットアップチェックリスト
+
+- [ ] `CHANGELOG.md` を作成した
+- [ ] `.github/workflows/release.yml` (caller workflow) を配置した
+- [ ] `.github/release.yml` (release notes カテゴリ設定) を配置した
+- [ ] `.github/PULL_REQUEST_TEMPLATE.md` を配置した
+- [ ] `Taskfile.yml` に release タスク参照を追加した
+- [ ] Rulesets を import した（main-protection / tag-protection）
+- [ ] Pull Requests 設定を確認した（squash merge / delete head branches）
 
 ## Release workflow の動作
 
