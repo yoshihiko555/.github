@@ -38,7 +38,50 @@
 - ルート worktree は `main` の確認と release 実行に使う
 - 日常作業は作業用 worktree で行う
 - ブランチ名は厳密にしすぎない
-  - 例: `fix/123`, `docs/readme`, `chore/release`
+- prefix は作業内容の目安を共有するためのものとし、release notes のカテゴリや `CHANGELOG.md` 更新要否の判定には使わない
+- prefix に迷ったら `task/<slug>` を使ってよい
+
+基本形:
+
+- `<prefix>/<slug>`
+- `slug` は小文字の kebab-case を基本にする
+- issue 番号がある場合は `123-login-timeout` のように先頭に付けてよい
+- 長すぎる説明文は避け、2-5語程度の短い識別子に寄せる
+
+prefix の目安:
+
+| prefix | 用途 |
+|--------|------|
+| `feat` | 利用者から見て新しい機能や目立つ機能追加 |
+| `fix` | バグ修正、回帰修正、期待挙動への修正 |
+| `docs` | ドキュメントのみの変更 |
+| `chore` | 内部整理、設定、依存更新、CI、補助スクリプトなど |
+| `refactor` | 挙動変更を意図しない構造整理 |
+| `test` | テストのみの変更 |
+| `release` | release 作業専用 |
+| `task` | prefix に迷う作業、調査、小さな雑多修正、混在変更 |
+
+例:
+
+- `feat/quiz-review`
+- `fix/123-login-timeout`
+- `docs/release-policy`
+- `chore/deps-update`
+- `task/branch-naming`
+
+運用上の補足:
+
+- branch 名は人間が見て分かれば十分で、分類の厳密さを求めない
+- `feat` / `fix` / `docs` が明確でないときは `task` を優先してよい
+- GitHub Release のカテゴリ分けは PR ラベルで行い、branch 名には依存しない
+- `CHANGELOG.md` 更新要否は branch 名ではなく、利用者影響の有無で判断する
+
+将来 `gtr` の branch 名自動生成を導入する場合の方針:
+
+- 入力は自由文 1 行を基本にし、毎回 prefix を考えさせない
+- 既定 prefix は `task` とし、明示指定がある場合だけ `feat` / `fix` / `docs` などに上書きする
+- 自由文は kebab-case の `slug` に正規化する
+- 自動生成の目的は命名厳密化ではなく、worktree 作成を止めないことに置く
 
 ## 競合解決
 
