@@ -12,6 +12,7 @@ yoshihiko555 の共通 GitHub 資材を管理するリポジトリ。
 ├── taskfiles/
 │   └── release.yml                # 共通 release タスク定義
 ├── templates/
+│   ├── CHANGELOG.md               # CHANGELOG テンプレート
 │   └── release.yml                # release notes カテゴリ設定テンプレート
 ├── docs/
 │   ├── git-release-policy.md      # Git/release 運用方針
@@ -51,12 +52,21 @@ includes:
 
 #### CHANGELOG.md
 
-リポジトリルートに `CHANGELOG.md` を作成する:
+`templates/CHANGELOG.md` をリポジトリルートの `CHANGELOG.md` としてコピーする。
+初回作成時から `Unreleased` と version セクションの見出し形式を揃えておく。
 
 ```markdown
 # Changelog
 
-## Unreleased
+## [Unreleased]
+
+### Added
+
+### Changed
+
+### Fixed
+
+## [0.1.0] - YYYY-MM-DD
 ```
 
 #### Release caller workflow

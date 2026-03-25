@@ -134,6 +134,7 @@ jobs:
 |------|--------|
 | reusable release workflow | [`yoshihiko555/.github/.github/workflows/release.yml`](https://github.com/yoshihiko555/.github) |
 | release タスク (tag 作成・push) | `yoshihiko555/.github/taskfiles/release.yml` |
+| CHANGELOG テンプレート | `yoshihiko555/.github/templates/CHANGELOG.md` |
 | release notes カテゴリ設定テンプレート | `yoshihiko555/.github/templates/release.yml` |
 | PR テンプレート | `yoshihiko555/.github/PULL_REQUEST_TEMPLATE.md` |
 | Rulesets JSON | `yoshihiko555/.github/rulesets/` |
