@@ -44,13 +44,11 @@ tasks:
         msg: "バージョン形式が不正です。vX.Y.Z 形式で指定してください（例: v0.1.0）"
       - sh: 'git tag -l "{{.NEXT_VERSION}}" | grep -q . && exit 1 || exit 0'
         msg: "タグ {{.NEXT_VERSION}} は既に存在します"
-      - sh: |
-          version="{{.NEXT_VERSION}}"
-          version="${version#v}"
-          grep -q "^## \[$version\]" CHANGELOG.md
-        msg: "CHANGELOG.md に {{.NEXT_VERSION}} のセクションを追加してください"
     cmds:
       - task: release:preflight
+      - task: release:changelog
+        vars:
+          TAG: "{{.NEXT_VERSION}}"
       - task: release:tag
         vars:
           TAG: "{{.NEXT_VERSION}}"
@@ -90,12 +88,18 @@ tasks:
           fi
         silent: true
 
+  release:changelog:
+    desc: CHANGELOG.md の Unreleased セクションをバージョンセクションに切り出してコミット
+    internal: true
+    cmds:
+      - cmd: bash "{{.TASKFILE_DIR}}/../scripts/release-changelog.sh" "{{.TAG}}"
+        silent: true
+
   release:tag:
     desc: リリースタグを作成して push
     internal: true
     cmds:
-      - git checkout {{.MAIN_BRANCH}}
-      - git pull --ff-only origin {{.MAIN_BRANCH}}
+      - git push origin {{.MAIN_BRANCH}}
       - git tag -a {{.TAG}} -m "Release {{.TAG}}"
       - git push origin {{.TAG}}
       - cmd: echo "==> {{.TAG}} を push しました。GitHub Actions が Release を作成します。"
