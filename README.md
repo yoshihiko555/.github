@@ -129,6 +129,7 @@ import 後に確認する項目:
 | Allow squash merging | ON |
 | Allow merge commits | OFF |
 | Allow rebase merging | OFF |
+| Allow auto-merge | ON |
 | Automatically delete head branches | ON |
 
 詳細は `docs/github-rulesets.md` を参照。
@@ -141,7 +142,7 @@ import 後に確認する項目:
 - [ ] PR テンプレート運用を確認した（共通テンプレートを使う / repo 独自で上書きする）
 - [ ] `Taskfile.yml` に release タスク参照を追加した
 - [ ] Rulesets を import した（main-protection / tag-protection）
-- [ ] Pull Requests 設定を確認した（squash merge / delete head branches）
+- [ ] Pull Requests 設定を確認した（squash merge / auto-merge / delete head branches）
 
 ## Release workflow の動作
 
