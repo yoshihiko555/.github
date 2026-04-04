@@ -122,11 +122,45 @@ git push
 
 ## Release フロー
 
-1. `CHANGELOG.md` の `Unreleased` を次 version に確定する
-2. `main` の CI と worktree 状態を確認する
-3. 各 repo の共通 `task release` を root worktree の `main` で実行する
-4. tag push を契機に GitHub Release を作成する
-5. assets が必要な repo は release 後の workflow で配布物を添付する
+リリースは 2 段階で実行する。main ブランチへの直接 push は行わない。
+
+### Step 1: リリース PR の作成
+
+root worktree の `main` で以下を実行する:
+
+```bash
+task release VERSION=vX.Y.Z
+# または
+task release BUMP=minor
+```
+
+このコマンドは以下を自動で行う:
+
+1. `main` ブランチ・未コミット変更のチェック
+2. `release/vX.Y.Z` ブランチを作成
+3. `CHANGELOG.md` の `Unreleased` を次 version に確定してコミット
+4. ブランチを push し PR を作成
+5. PR に auto-merge（squash）を設定
+
+### Step 2: タグの作成
+
+PR がマージされたら以下を実行する:
+
+```bash
+task release:complete VERSION=vX.Y.Z
+```
+
+このコマンドは以下を自動で行う:
+
+1. PR がマージ済みであることを確認
+2. `main` を最新化
+3. アノテーション付きタグを作成して push
+4. tag push を契機に GitHub Actions が GitHub Release を作成
+
+### 前提条件
+
+- リポジトリ設定で **Allow auto-merge** を有効にしておくこと
+- assets が必要な repo は release 後の workflow で配布物を添付する
 
 補足:
 
