@@ -98,6 +98,8 @@ includes:
     flatten: true
 ```
 
+この release タスクは release PR 作成後に `gh pr merge --squash --auto` を実行するため、GitHub の対象 repo で **Settings** → **General** → **Pull Requests** → **Allow auto-merge** を ON にしておく。
+
 ### 2. GitHub Settings
 
 #### Rulesets
@@ -131,6 +133,8 @@ import 後に確認する項目:
 | Allow rebase merging | OFF |
 | Allow auto-merge | ON |
 | Automatically delete head branches | ON |
+
+`task release` は release PR 作成後に auto-merge を設定するため、この項目が OFF だと PR 作成後の最後のステップで失敗する。
 
 詳細は `docs/github-rulesets.md` を参照。
 
