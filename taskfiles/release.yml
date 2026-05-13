@@ -149,7 +149,8 @@ tasks:
       - cmd: |
           branch="release/{{.TAG}}"
           if [ -n "{{.STAGE_BRANCH}}" ]; then
-            # ──── stage 経由フロー: stage と main の両方に並列 PR ────
+            # ──── stage 経由フロー（直列）: release → stage を待ってから stage → main ────
+            # PR1: release/<TAG> → stage
             stage_pr=$(gh pr create \
               --base "{{.STAGE_BRANCH}}" \
               --head "$branch" \
@@ -162,10 +163,31 @@ tasks:
             echo "  ✓ {{.STAGE_BRANCH}} 向け PR を作成しました: $stage_pr"
             gh pr merge "$stage_pr" --squash --auto
             echo "  ✓ {{.STAGE_BRANCH}} 向け PR の auto-merge を設定しました"
+            echo ""
+            echo "==> {{.STAGE_BRANCH}} 向け PR のマージを待機中..."
+            # auto-merge 完了を polling（タイムアウト: 30 分）
+            elapsed=0
+            timeout=1800
+            while [ "$(gh pr view "$stage_pr" --json state -q .state 2>/dev/null)" != "MERGED" ]; do
+              if [ "$elapsed" -ge "$timeout" ]; then
+                echo "  ⚠ タイムアウト: PR がマージされませんでした"
+                echo "  手動でマージを確認してから再実行してください: $stage_pr"
+                exit 1
+              fi
+              sleep 15
+              elapsed=$((elapsed + 15))
+            done
+            echo "  ✓ {{.STAGE_BRANCH}} 向け PR がマージされました"
 
+            # stage を最新化（PR1 のマージ結果を取り込む）
+            git checkout "{{.STAGE_BRANCH}}"
+            git pull origin "{{.STAGE_BRANCH}}"
+            echo "  ✓ {{.STAGE_BRANCH}} を最新化しました"
+
+            # PR2: stage → main（head が permanent branch なので auto-delete されない）
             main_pr=$(gh pr create \
               --base "{{.MAIN_BRANCH}}" \
-              --head "$branch" \
+              --head "{{.STAGE_BRANCH}}" \
               --title "chore(release): {{.TAG}}" \
               --body "## Summary
           - {{.STAGE_BRANCH}} の全 feature 群を {{.MAIN_BRANCH}} にリリース
@@ -204,20 +226,20 @@ tasks:
       - cmd: |
           branch="release/{{.TAG}}"
           if [ -n "{{.STAGE_BRANCH}}" ]; then
-            # stage 経由フロー: 両 PR のマージ状態を確認
-            main_state=$(gh pr list --head "$branch" --base "{{.MAIN_BRANCH}}" --state all --json state --jq '.[0].state // "NOT_FOUND"' 2>/dev/null || echo "NOT_FOUND")
+            # stage 経由フロー（直列）: 最新の stage → main PR と release → stage PR を確認
+            main_state=$(gh pr list --head "{{.STAGE_BRANCH}}" --base "{{.MAIN_BRANCH}}" --state all --limit 1 --json state --jq '.[0].state // "NOT_FOUND"' 2>/dev/null || echo "NOT_FOUND")
             stage_state=$(gh pr list --head "$branch" --base "{{.STAGE_BRANCH}}" --state all --json state --jq '.[0].state // "NOT_FOUND"' 2>/dev/null || echo "NOT_FOUND")
-            if [ "$main_state" != "MERGED" ]; then
-              echo "  ⚠ {{.MAIN_BRANCH}} 向け PR がまだマージされていません (state: $main_state)"
-              echo "  PR をマージしてから再実行してください。"
-              exit 1
-            fi
             if [ "$stage_state" != "MERGED" ]; then
-              echo "  ⚠ {{.STAGE_BRANCH}} 向け PR がまだマージされていません (state: $stage_state)"
+              echo "  ⚠ {{.STAGE_BRANCH}} 向け PR ($branch) がまだマージされていません (state: $stage_state)"
               echo "  PR をマージしてから再実行してください。"
               exit 1
             fi
-            echo "  ✓ 両 PR ({{.MAIN_BRANCH}} / {{.STAGE_BRANCH}}) はマージ済みです"
+            if [ "$main_state" != "MERGED" ]; then
+              echo "  ⚠ {{.MAIN_BRANCH}} 向け PR ({{.STAGE_BRANCH}} → {{.MAIN_BRANCH}}) がまだマージされていません (state: $main_state)"
+              echo "  PR をマージしてから再実行してください。"
+              exit 1
+            fi
+            echo "  ✓ 両 PR がマージ済みです（release/{{.TAG}} → {{.STAGE_BRANCH}} / {{.STAGE_BRANCH}} → {{.MAIN_BRANCH}}）"
           else
             state=$(gh pr view "$branch" --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
             if [ "$state" = "MERGED" ]; then

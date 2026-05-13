@@ -111,13 +111,20 @@ includes:
       STAGE_BRANCH: stage
 ```
 
-`STAGE_BRANCH` を指定すると `task release` は以下のフローに切り替わる:
+`STAGE_BRANCH` を指定すると `task release` は以下のフローに切り替わる（直列方式）:
 
 1. 起点ブランチを `STAGE_BRANCH` として検証（main ではなく stage 上で実行する必要がある）
 2. `release/<VERSION>` を `STAGE_BRANCH` から切る
 3. CHANGELOG.md を更新コミット
-4. `release/<VERSION>` を `STAGE_BRANCH` 向けと `MAIN_BRANCH` 向けの両方に並列で PR 作成
-5. 両 PR を squash + auto-merge
+4. **PR1**: `release/<VERSION>` → `STAGE_BRANCH`（squash + auto-merge）
+5. PR1 のマージ完了を待機（auto-merge 後の最終マージまで polling）
+6. `STAGE_BRANCH` を pull で最新化
+7. **PR2**: `STAGE_BRANCH` → `MAIN_BRANCH`（squash + auto-merge）
+
+並列ではなく直列にする理由: `Automatically delete head branches` が ON の場合、
+同じ head ブランチを共有する 2 つの並列 PR では、片方のマージで head ブランチが
+削除され、もう片方の PR が孤立する。直列方式では PR2 の head を **永続ブランチ
+である `STAGE_BRANCH`** にすることで auto-delete を回避する。
 
 未指定時は従来通り main 起点の単発 PR フローで動作する（後方互換）。
 
