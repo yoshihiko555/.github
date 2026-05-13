@@ -3,6 +3,11 @@ version: "3"
 vars:
   # main ブランチ名（プロジェクトによって異なる場合に上書き可）
   MAIN_BRANCH: '{{.MAIN_BRANCH | default "main"}}'
+  # 開発統合ブランチ名（指定すると stage 経由フローを採用する）
+  # 未指定（空文字）の場合は従来通り main 起点の単発 PR フロー
+  # 指定時は STAGE_BRANCH 上で release を実行し、
+  # release/* → STAGE_BRANCH と release/* → MAIN_BRANCH の並列 PR フローになる
+  STAGE_BRANCH: '{{.STAGE_BRANCH | default ""}}'
 
 tasks:
   release:
@@ -37,6 +42,8 @@ tasks:
           else
             echo ""
           fi
+      # 起点ブランチ: STAGE_BRANCH が指定されていればそれ、未指定なら MAIN_BRANCH
+      BASE_BRANCH: "{{if .STAGE_BRANCH}}{{.STAGE_BRANCH}}{{else}}{{.MAIN_BRANCH}}{{end}}"
     preconditions:
       - sh: '[ -n "{{.NEXT_VERSION}}" ]'
         msg: "VERSION または BUMP を指定してください（例: task release VERSION=v0.1.0 / task release BUMP=minor）"
@@ -46,9 +53,12 @@ tasks:
         msg: "タグ {{.NEXT_VERSION}} は既に存在します"
     cmds:
       - task: release:preflight
+        vars:
+          BASE_BRANCH: "{{.BASE_BRANCH}}"
       - task: release:branch
         vars:
           TAG: "{{.NEXT_VERSION}}"
+          BASE_BRANCH: "{{.BASE_BRANCH}}"
       - task: release:changelog
         vars:
           TAG: "{{.NEXT_VERSION}}"
@@ -83,11 +93,11 @@ tasks:
         silent: true
       - cmd: |
           current=$(git branch --show-current)
-          if [ "$current" != "{{.MAIN_BRANCH}}" ]; then
-            echo "  ⚠ 現在 $current ブランチです。release は {{.MAIN_BRANCH}} ブランチ上で実行してください。"
+          if [ "$current" != "{{.BASE_BRANCH}}" ]; then
+            echo "  ⚠ 現在 $current ブランチです。release は {{.BASE_BRANCH}} ブランチ上で実行してください。"
             exit 1
           else
-            echo "  ✓ {{.MAIN_BRANCH}} ブランチです"
+            echo "  ✓ {{.BASE_BRANCH}} ブランチです"
           fi
         silent: true
       - cmd: |
@@ -117,7 +127,7 @@ tasks:
       - cmd: |
           branch="release/{{.TAG}}"
           git checkout -b "$branch"
-          echo "  ✓ ブランチ $branch を作成しました"
+          echo "  ✓ ブランチ $branch を作成しました ({{.BASE_BRANCH}} 起点)"
         silent: true
 
   release:changelog:
@@ -137,18 +147,51 @@ tasks:
           echo "  ✓ $branch を push しました"
         silent: true
       - cmd: |
-          pr_url=$(gh pr create \
-            --base "{{.MAIN_BRANCH}}" \
-            --title "chore(release): {{.TAG}}" \
-            --body "## Summary
+          branch="release/{{.TAG}}"
+          if [ -n "{{.STAGE_BRANCH}}" ]; then
+            # ──── stage 経由フロー: stage と main の両方に並列 PR ────
+            stage_pr=$(gh pr create \
+              --base "{{.STAGE_BRANCH}}" \
+              --head "$branch" \
+              --title "chore(release): {{.TAG}}" \
+              --body "## Summary
+          - CHANGELOG.md を {{.TAG}} 用に更新
+
+          このPRは \`task release\` により自動作成されました。
+          {{.STAGE_BRANCH}} に CHANGELOG を反映するためのリリース PR です。")
+            echo "  ✓ {{.STAGE_BRANCH}} 向け PR を作成しました: $stage_pr"
+            gh pr merge "$stage_pr" --squash --auto
+            echo "  ✓ {{.STAGE_BRANCH}} 向け PR の auto-merge を設定しました"
+
+            main_pr=$(gh pr create \
+              --base "{{.MAIN_BRANCH}}" \
+              --head "$branch" \
+              --title "chore(release): {{.TAG}}" \
+              --body "## Summary
+          - {{.STAGE_BRANCH}} の全 feature 群を {{.MAIN_BRANCH}} にリリース
+          - CHANGELOG.md を {{.TAG}} 用に更新
+
+          このPRは \`task release\` により自動作成されました。
+          {{.MAIN_BRANCH}} 向けの正式リリース PR です。")
+            echo "  ✓ {{.MAIN_BRANCH}} 向け PR を作成しました: $main_pr"
+            gh pr merge "$main_pr" --squash --auto
+            echo "  ✓ {{.MAIN_BRANCH}} 向け PR の auto-merge を設定しました"
+          else
+            # ──── 従来フロー: main 単発 ────
+            pr_url=$(gh pr create \
+              --base "{{.MAIN_BRANCH}}" \
+              --head "$branch" \
+              --title "chore(release): {{.TAG}}" \
+              --body "## Summary
           - CHANGELOG.md を {{.TAG}} 用に更新
 
           このPRは \`task release\` により自動作成されました。")
-          echo "  ✓ PR を作成しました: $pr_url"
+            echo "  ✓ PR を作成しました: $pr_url"
+            gh pr merge --squash --auto
+            echo "  ✓ auto-merge を設定しました"
+          fi
         silent: true
       - cmd: |
-          gh pr merge --squash --auto
-          echo "  ✓ auto-merge を設定しました"
           echo ""
           echo "==> PR がマージされたら以下を実行してください:"
           echo "    task release:complete VERSION={{.TAG}}"
@@ -160,13 +203,30 @@ tasks:
     cmds:
       - cmd: |
           branch="release/{{.TAG}}"
-          state=$(gh pr view "$branch" --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
-          if [ "$state" = "MERGED" ]; then
-            echo "  ✓ PR ($branch) はマージ済みです"
+          if [ -n "{{.STAGE_BRANCH}}" ]; then
+            # stage 経由フロー: 両 PR のマージ状態を確認
+            main_state=$(gh pr list --head "$branch" --base "{{.MAIN_BRANCH}}" --state all --json state --jq '.[0].state // "NOT_FOUND"' 2>/dev/null || echo "NOT_FOUND")
+            stage_state=$(gh pr list --head "$branch" --base "{{.STAGE_BRANCH}}" --state all --json state --jq '.[0].state // "NOT_FOUND"' 2>/dev/null || echo "NOT_FOUND")
+            if [ "$main_state" != "MERGED" ]; then
+              echo "  ⚠ {{.MAIN_BRANCH}} 向け PR がまだマージされていません (state: $main_state)"
+              echo "  PR をマージしてから再実行してください。"
+              exit 1
+            fi
+            if [ "$stage_state" != "MERGED" ]; then
+              echo "  ⚠ {{.STAGE_BRANCH}} 向け PR がまだマージされていません (state: $stage_state)"
+              echo "  PR をマージしてから再実行してください。"
+              exit 1
+            fi
+            echo "  ✓ 両 PR ({{.MAIN_BRANCH}} / {{.STAGE_BRANCH}}) はマージ済みです"
           else
-            echo "  ⚠ PR ($branch) がまだマージされていません（state: $state）"
-            echo "  PR をマージしてから再実行してください。"
-            exit 1
+            state=$(gh pr view "$branch" --json state --jq '.state' 2>/dev/null || echo "NOT_FOUND")
+            if [ "$state" = "MERGED" ]; then
+              echo "  ✓ PR ($branch) はマージ済みです"
+            else
+              echo "  ⚠ PR ($branch) がまだマージされていません（state: $state）"
+              echo "  PR をマージしてから再実行してください。"
+              exit 1
+            fi
           fi
         silent: true
 

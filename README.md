@@ -27,8 +27,8 @@ yoshihiko555 の共通 GitHub 資材を管理するリポジトリ。
 
 ## Reusable Workflows
 
-| Workflow | 用途 |
-|----------|------|
+| Workflow                        | 用途                                                      |
+| ------------------------------- | --------------------------------------------------------- |
 | `.github/workflows/release.yml` | tag push を契機に CHANGELOG.md から GitHub Release を作成 |
 
 ## 新規リポジトリセットアップ
@@ -98,6 +98,31 @@ includes:
     flatten: true
 ```
 
+##### stage 経由フロー（任意）
+
+stage ブランチを dev channel として運用し、リリース時に stage と main 両方を同時に更新したい場合は `vars` で `STAGE_BRANCH` を指定する:
+
+```yaml
+includes:
+  rel:
+    taskfile: ~/ghq/github.com/yoshihiko555/.github/taskfiles/release.yml
+    flatten: true
+    vars:
+      STAGE_BRANCH: stage
+```
+
+`STAGE_BRANCH` を指定すると `task release` は以下のフローに切り替わる:
+
+1. 起点ブランチを `STAGE_BRANCH` として検証（main ではなく stage 上で実行する必要がある）
+2. `release/<VERSION>` を `STAGE_BRANCH` から切る
+3. CHANGELOG.md を更新コミット
+4. `release/<VERSION>` を `STAGE_BRANCH` 向けと `MAIN_BRANCH` 向けの両方に並列で PR 作成
+5. 両 PR を squash + auto-merge
+
+未指定時は従来通り main 起点の単発 PR フローで動作する（後方互換）。
+
+##### auto-merge の前提
+
 この release タスクは release PR 作成後に `gh pr merge --squash --auto` を実行するため、GitHub の対象 repo で **Settings** → **General** → **Pull Requests** → **Allow auto-merge** を ON にしておく。
 
 ### 2. GitHub Settings
@@ -126,13 +151,13 @@ import 後に確認する項目:
 
 **Settings** → **General** → **Pull Requests** を次のように設定する。
 
-| 設定項目 | 値 |
-|----------|-----|
-| Allow squash merging | ON |
-| Allow merge commits | OFF |
-| Allow rebase merging | OFF |
-| Allow auto-merge | ON |
-| Automatically delete head branches | ON |
+| 設定項目                           | 値  |
+| ---------------------------------- | --- |
+| Allow squash merging               | ON  |
+| Allow merge commits                | OFF |
+| Allow rebase merging               | OFF |
+| Allow auto-merge                   | ON  |
+| Automatically delete head branches | ON  |
 
 `task release` は release PR 作成後に auto-merge を設定するため、この項目が OFF だと PR 作成後の最後のステップで失敗する。
 
